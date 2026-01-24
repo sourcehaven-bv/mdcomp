@@ -1,0 +1,46 @@
+# Invoice context for Acme Corp - January 2026
+invoice_number: INV-2026-003
+date: 2026-01-24
+due_date: 2026-02-23
+payment_days: 30
+currency: EUR
+vat_rate: 21
+
+client:
+  name: Acme Corporation
+  contact: John Smith
+  address: |
+    456 Enterprise Avenue
+    1017 RT Amsterdam
+    Netherlands
+  vat_number: NL987654321B01
+
+hourly_rate: 150
+
+timesheet:
+  - date: 2026-01-06
+    hours: 8
+    description: Architecture review and documentation
+
+  - date: 2026-01-07
+    hours: 6
+    description: Security assessment meeting
+
+  - date: 2026-01-13
+    hours: 8
+    description: Implementation of authentication module
+
+  - date: 2026-01-14
+    hours: 8
+    description: Implementation of authentication module (continued)
+
+  - date: 2026-01-20
+    hours: 4
+    description: Code review and feedback session
+
+  - date: 2026-01-21
+    hours: 6
+    description: Performance optimization
+
+project: Cloud Migration Phase 2
+reference: PO-2026-0042

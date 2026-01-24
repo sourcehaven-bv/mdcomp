@@ -1,0 +1,46 @@
+{% set body %}
+## Introduction
+
+This document demonstrates how to generate a table of contents using the `headers` filter.
+
+### Why Use a TOC?
+
+A table of contents helps readers navigate longer documents quickly.
+
+### How It Works
+
+The `headers` filter extracts all headers from markdown content, returning a list of dictionaries with `level` and `title` keys.
+
+## Features
+
+### Flexible Rendering
+
+Because `headers` returns data (not markup), you control exactly how the TOC is rendered.
+
+### Level Filtering
+
+Use `min_level` and `max_level` to include only certain header levels.
+
+## Advanced Usage
+
+### Numbered Lists
+
+You can render the TOC as a numbered list instead of bullets.
+
+### Custom Styling
+
+Add CSS classes, icons, or any other markup you need.
+
+## Conclusion
+
+The `headers` filter provides a simple, flexible way to generate tables of contents.
+{% endset %}
+# Document with Table of Contents
+
+## Table of Contents
+
+{% for h in body | headers(min_level=2) %}
+{{ "  " * (h.level - 2) }}- [{{ h.title }}](#{{ h.title | slugify }})
+{% endfor %}
+
+{{ body }}

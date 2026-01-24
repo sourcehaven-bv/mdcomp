@@ -1,0 +1,7 @@
+# Items Report
+
+{% for doc in query(".", status="published") %}
+## {{ doc.meta.title }}
+
+{{ doc.content }}
+{% endfor %}

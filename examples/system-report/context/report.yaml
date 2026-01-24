@@ -1,0 +1,22 @@
+# System Report Configuration
+report:
+  title: "System Status Report"
+  generated_by: "mdcomp"
+
+thresholds:
+  disk_warning: 80    # Percentage
+  disk_critical: 90
+
+# Directories to check for git repos
+git_scan_paths:
+  - "~/Work"
+  - "~/Projects"
+
+# Include sections (toggle on/off)
+sections:
+  system_info: true
+  disk_usage: true
+  network: true
+  git_repos: true
+  docker: true
+  processes: true

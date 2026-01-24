@@ -1,0 +1,147 @@
+---
+# Defaults
+thresholds:
+  disk_warning: 80
+  disk_critical: 90
+sections:
+  system_info: true
+  disk_usage: true
+  network: true
+  git_repos: true
+  docker: true
+  processes: true
+content_base: .
+---
+# {{ report.title | default("System Status Report") }}
+
+**Generated:** {{ shell("date '+%Y-%m-%d %H:%M:%S %Z'") | trim }}
+**Hostname:** {{ shell("hostname") | trim }}
+**User:** {{ shell("whoami") | trim }}
+
+---
+
+{% if sections.system_info %}
+## System Information
+
+| Property | Value |
+|----------|-------|
+| **OS** | {{ shell("uname -s") | trim }} {{ shell("uname -r") | trim }} |
+| **Architecture** | {{ shell("uname -m") | trim }} |
+| **Uptime** | {{ shell("uptime | sed 's/.*up //' | sed 's/,.*//'") | trim }} |
+{% if shell("which sw_vers 2>/dev/null") | trim %}
+| **macOS Version** | {{ shell("sw_vers -productVersion") | trim }} |
+{% endif %}
+| **Shell** | {{ shell("echo $SHELL") | trim }} |
+| **Python** | {{ shell("python3 --version 2>/dev/null || echo 'Not installed'") | trim }} |
+| **Node.js** | {{ shell("node --version 2>/dev/null || echo 'Not installed'") | trim }} |
+
+{% endif %}
+
+{% if sections.disk_usage %}
+## Disk Usage
+
+```
+{{ shell("df -h | grep -E '^/dev|^Filesystem'") }}
+```
+
+{% set disk_info = shell("df -h / | tail -1 | awk '{print $5}' | tr -d '%'") | trim | int %}
+{% if disk_info >= thresholds.disk_critical %}
+⚠️ **CRITICAL:** Root filesystem is {{ disk_info }}% full (threshold: {{ thresholds.disk_critical }}%)
+{% elif disk_info >= thresholds.disk_warning %}
+⚡ **WARNING:** Root filesystem is {{ disk_info }}% full (threshold: {{ thresholds.disk_warning }}%)
+{% else %}
+✅ Root filesystem usage is healthy ({{ disk_info }}%)
+{% endif %}
+
+{% endif %}
+
+{% if sections.network %}
+## Network
+
+### Active Interfaces
+
+```
+{{ shell("ifconfig | grep -E '^[a-z]|inet ' | grep -v '127.0.0.1' | head -20") }}
+```
+
+### Listening Ports
+
+| Port | Process |
+|------|---------|
+{% for line in shell("lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | tail -10 | awk '{print $9, $1}'").strip().split('\n') %}
+{% if line.strip() %}
+| {{ line.split()[0] if line.split() else '-' }} | {{ line.split()[1] if line.split()|length > 1 else '-' }} |
+{% endif %}
+{% endfor %}
+
+{% endif %}
+
+{% if sections.git_repos %}
+## Git Repositories
+
+Recent git activity in current directory tree:
+
+| Repository | Branch | Status | Last Commit |
+|------------|--------|--------|-------------|
+{% for repo in shell("find . -name .git -type d -maxdepth 3 2>/dev/null | head -10 | sed 's/\\.git$//'").strip().split('\n') %}
+{% if repo.strip() %}
+{% set branch = shell("git -C '" + repo + "' branch --show-current 2>/dev/null") | trim %}
+{% set status = shell("git -C '" + repo + "' status --porcelain 2>/dev/null | wc -l") | trim %}
+{% set last_commit = shell("git -C '" + repo + "' log -1 --format='%ar' 2>/dev/null") | trim %}
+| `{{ repo }}` | {{ branch if branch else 'detached' }} | {{ status }} changes | {{ last_commit if last_commit else 'N/A' }} |
+{% endif %}
+{% endfor %}
+
+{% endif %}
+
+{% if sections.docker %}
+## Docker
+
+{% if shell("which docker 2>/dev/null || true") | trim %}
+### Running Containers
+
+```
+{{ shell("docker ps --format 'table {% raw %}{{.Names}}{% endraw %}\t{% raw %}{{.Image}}{% endraw %}\t{% raw %}{{.Status}}{% endraw %}' 2>/dev/null || echo 'Docker not running or no containers'") }}
+```
+
+### Docker Disk Usage
+
+```
+{{ shell("docker system df 2>/dev/null || echo 'Docker not available'") }}
+```
+{% else %}
+*Docker is not installed*
+{% endif %}
+
+{% endif %}
+
+{% if sections.processes %}
+## Top Processes
+
+### By CPU Usage
+
+```
+{{ shell("ps aux | head -1 && ps aux | sort -rk 3 | head -5") }}
+```
+
+### By Memory Usage
+
+```
+{{ shell("ps aux | head -1 && ps aux | sort -rk 4 | head -5") }}
+```
+
+{% endif %}
+
+---
+
+## Environment Summary
+
+| Tool | Version | Status |
+|------|---------|--------|
+| **git** | {{ shell("git --version 2>/dev/null | awk '{print $3}'") | trim or 'Not installed' }} | {% if shell("which git 2>/dev/null") | trim %}✅{% else %}❌{% endif %} |
+| **docker** | {{ shell("docker --version 2>/dev/null | awk '{print $3}' | tr -d ',' || echo ''") | trim or 'Not installed' }} | {% if shell("which docker 2>/dev/null || true") | trim %}✅{% else %}❌{% endif %} |
+| **python3** | {{ shell("python3 --version 2>/dev/null | awk '{print $2}'") | trim or 'Not installed' }} | {% if shell("which python3 2>/dev/null") | trim %}✅{% else %}❌{% endif %} |
+| **node** | {{ shell("node --version 2>/dev/null") | trim or 'Not installed' }} | {% if shell("which node 2>/dev/null") | trim %}✅{% else %}❌{% endif %} |
+| **uv** | {{ shell("uv --version 2>/dev/null | awk '{print $2}'") | trim or 'Not installed' }} | {% if shell("which uv 2>/dev/null") | trim %}✅{% else %}❌{% endif %} |
+
+{{ content("../snippets/footer.md") }}

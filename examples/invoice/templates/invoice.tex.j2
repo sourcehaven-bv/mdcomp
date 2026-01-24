@@ -1,0 +1,120 @@
+---
+# Template defaults
+payment_days: 30
+currency: EUR
+vat_rate: 21
+---
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+
+% Colors
+\definecolor{primary}{RGB}{51,51,51}
+\definecolor{accent}{RGB}{0,102,204}
+
+% No paragraph indent
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+
+% Required for pandoc output
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% Header/footer
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\fancyfoot[C]{\small\textcolor{gray}{Page \thepage}}
+
+\begin{document}
+
+% Company header (markdown snippet converted to LaTeX)
+{{ content("snippets/company-header.md") | pipe("pandoc -f markdown -t latex") }}
+
+\vspace{1cm}
+\hrule
+\vspace{1cm}
+
+{\Huge\bfseries INVOICE}
+
+\vspace{1cm}
+
+\begin{tabular}{@{}ll@{}}
+\textbf{Invoice \#:} & {{ invoice_number }} \\
+\textbf{Date:} & {{ date }} \\
+\textbf{Due Date:} & {{ due_date }} \\
+{% if reference %}\textbf{Reference:} & {{ reference }} \\{% endif %}
+\end{tabular}
+
+\vspace{1cm}
+\hrule
+\vspace{1cm}
+
+\section*{Bill To}
+
+\textbf{ {{- client.name -}} }
+{% if client.contact %}
+
+Attn: {{ client.contact }}
+{% endif %}
+
+{{ client.address | replace('\n', ' \\\\ ') }}
+{% if client.vat_number %}
+
+VAT: {{ client.vat_number }}
+{% endif %}
+
+\vspace{1cm}
+\hrule
+\vspace{1cm}
+
+\section*{Services Rendered}
+{% if project %}
+
+\textbf{Project:} {{ project }}
+{% endif %}
+
+\begin{longtable}{@{}llp{8cm}@{}}
+\toprule
+\textbf{Date} & \textbf{Hours} & \textbf{Description} \\
+\midrule
+\endhead
+{% for entry in timesheet %}
+{{ entry.date }} & {{ entry.hours }} & {{ entry.description }} \\
+{% endfor %}
+\bottomrule
+\end{longtable}
+
+\vspace{1cm}
+\hrule
+\vspace{1cm}
+
+\section*{Summary}
+
+{% set total_hours = timesheet | sum(attribute='hours') %}
+{% set subtotal = total_hours * hourly_rate %}
+{% set vat_amount = (subtotal * vat_rate / 100) | round(2) %}
+{% set total = subtotal + vat_amount %}
+
+\begin{tabular}{@{}lr@{}}
+\textbf{Hourly Rate:} & {{ currency }} {{ "%.2f" | format(hourly_rate) }} \\
+\textbf{Total Hours:} & {{ total_hours }} \\
+\textbf{Subtotal:} & {{ currency }} {{ "%.2f" | format(subtotal) }} \\
+\textbf{VAT ({{ vat_rate }}\%):} & {{ currency }} {{ "%.2f" | format(vat_amount) }} \\
+\midrule
+\textbf{Total Due:} & \textbf{ {{- currency }} {{ "%.2f" | format(total) -}} } \\
+\end{tabular}
+
+\vspace{1cm}
+\hrule
+\vspace{1cm}
+
+% Payment terms (markdown snippet with variables, converted to LaTeX)
+{% set payment_terms_md %}{% include "snippets/payment-terms.md" %}{% endset %}
+{{ payment_terms_md | pipe("pandoc -f markdown -t latex") }}
+
+\end{document}

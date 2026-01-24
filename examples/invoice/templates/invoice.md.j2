@@ -1,0 +1,63 @@
+---
+# Template defaults
+payment_days: 30
+currency: EUR
+vat_rate: 21
+content_base: .
+---
+{{ content("../snippets/company-header.md") }}
+
+---
+
+# INVOICE
+
+| | |
+|----------------|----------------------------------------|
+| **Invoice #:** | {{ invoice_number }} |
+| **Date:** | {{ date }} |
+| **Due Date:** | {{ due_date }} |
+{% if reference %}| **Reference:** | {{ reference }} |{% endif %}
+
+---
+
+## Bill To
+
+**{{ client.name }}**
+{% if client.contact %}Attn: {{ client.contact }}{% endif %}
+
+{{ client.address }}
+{% if client.vat_number %}VAT: {{ client.vat_number }}{% endif %}
+
+---
+
+## Services Rendered
+{% if project %}
+**Project:** {{ project }}
+{% endif %}
+
+| Date | Hours | Description |
+|------|------:|-------------|
+{% for entry in timesheet %}
+| {{ entry.date }} | {{ entry.hours }} | {{ entry.description }} |
+{% endfor %}
+
+---
+
+## Summary
+
+{% set total_hours = timesheet | sum(attribute='hours') %}
+{% set subtotal = total_hours * hourly_rate %}
+{% set vat_amount = (subtotal * vat_rate / 100) | round(2) %}
+{% set total = subtotal + vat_amount %}
+
+| | |
+|---------------------|-------------------:|
+| **Hourly Rate:** | {{ currency }} {{ "%.2f" | format(hourly_rate) }} |
+| **Total Hours:** | {{ total_hours }} |
+| **Subtotal:** | {{ currency }} {{ "%.2f" | format(subtotal) }} |
+| **VAT ({{ vat_rate }}%):** | {{ currency }} {{ "%.2f" | format(vat_amount) }} |
+| **Total Due:** | **{{ currency }} {{ "%.2f" | format(total) }}** |
+
+---
+
+{{ content("../snippets/payment-terms.md") }}

@@ -1,0 +1,7 @@
+name: Test User
+project: mdcomp
+items:
+  - name: Item 1
+    value: 100
+  - name: Item 2
+    value: 200

@@ -1,0 +1,33 @@
+# IT Architecture Document Context
+document:
+  title: "CloudPlatform Architecture Document"
+  version: "2.1"
+  date: "2026-01-24"
+  classification: "Internal"
+
+project:
+  name: "CloudPlatform"
+  code: "CP-2026"
+  phase: "Production"
+
+organization:
+  name: "TechCorp BV"
+  department: "Engineering"
+
+authors:
+  - name: "Jane Architect"
+    role: "Solution Architect"
+  - name: "Bob Security"
+    role: "Security Officer"
+
+reviewers:
+  - name: "Alice CTO"
+    role: "Chief Technology Officer"
+  - name: "Charlie Compliance"
+    role: "Compliance Manager"
+
+# Filter which ADRs to include
+adr_status: accepted
+
+# Filter which requirements to include
+include_draft_requirements: false
