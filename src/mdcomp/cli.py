@@ -1,5 +1,6 @@
 """Command-line interface for mdcomp."""
 
+import traceback
 from pathlib import Path
 from typing import Annotated
 
@@ -9,6 +10,7 @@ from rich.table import Table
 
 from mdcomp import __version__
 from mdcomp.context import load_context
+from mdcomp.errors import MdcompError
 from mdcomp.query import Document, query_files
 from mdcomp.render import render_template
 
@@ -27,6 +29,19 @@ app = typer.Typer(
 )
 console = Console()
 err_console = Console(stderr=True)
+
+# Module-level state for global options
+_state: dict[str, bool] = {"verbose": False}
+
+
+def _handle_error(e: Exception) -> None:
+    """Print a user-friendly error message, with optional traceback."""
+    if isinstance(e, MdcompError):
+        err_console.print(f"[red]Error:[/red] {e}")
+    else:
+        err_console.print(f"[red]Unexpected error:[/red] {e}")
+    if _state["verbose"]:
+        err_console.print(f"\n[dim]{traceback.format_exc()}[/dim]")
 
 
 @app.command()
@@ -89,10 +104,8 @@ def render(
             print(result)
 
     except Exception as e:
-        err_console.print(f"[red]Error:[/red] {e}")
-        if strict:
-            raise typer.Exit(1) from None
-        raise
+        _handle_error(e)
+        raise typer.Exit(1) from None
 
 
 @app.command("list")
@@ -203,7 +216,7 @@ def meta(
             print(yaml.dump(doc.meta, default_flow_style=False))
 
     except Exception as e:
-        err_console.print(f"[red]Error:[/red] {e}")
+        _handle_error(e)
         raise typer.Exit(1) from None
 
 
@@ -270,7 +283,7 @@ def watch(
             output.write_text(result)
             return True
         except Exception as e:
-            err_console.print(f"[red]Error:[/red] {e}")
+            _handle_error(e)
             return False
 
     # Collect paths to watch
@@ -315,9 +328,17 @@ def main(
             is_eager=True,
         ),
     ] = None,
+    verbose: Annotated[
+        bool,
+        typer.Option(
+            "--verbose",
+            "-v",
+            help="Show full error tracebacks for debugging.",
+        ),
+    ] = False,
 ) -> None:
     """MDComp - Compose documents from Markdown snippets and templates."""
-    pass
+    _state["verbose"] = verbose
 
 
 if __name__ == "__main__":

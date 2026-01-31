@@ -100,7 +100,7 @@ max-complexity = 15
 "src/mdcomp/query.py" = ["PERF203", "S112"]  # try-except in loop is acceptable for file parsing
 "src/mdcomp/render.py" = ["S602", "S603", "S607", "S701"]  # intentional shell execution + autoescape is configured via select_autoescape
 "src/mdcomp/filters.py" = ["S602", "S603", "S607"]  # intentional shell execution (pipe filter)
-"tests/*" = ["S101"]  # assert is fine in tests
+"tests/*" = ["S101", "S110"]  # assert is fine in tests; bare except pass in fuzz tests
 
 [tool.ruff.lint.isort]
 known-first-party = ["mdcomp"]
@@ -152,6 +152,7 @@ ignore-signatures = true
 dev = [
     "pytest>=9.0",
     "pytest-cov>=4.0",
+    "hypothesis>=6.0",
     "ruff>=0.9",
     "mypy>=1.10",
     "types-pyyaml>=6.0",
