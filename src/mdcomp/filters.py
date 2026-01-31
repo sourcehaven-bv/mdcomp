@@ -8,6 +8,8 @@ from typing import Any
 
 import yaml
 
+from mdcomp.errors import ShellError
+
 
 def from_json(value: str) -> dict | list | None:
     """Parse JSON string to Python object. Returns None for empty strings."""
@@ -166,7 +168,11 @@ def pipe(value: str, command: str) -> str:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Pipe command failed: {command}\nStderr: {result.stderr}")
+        stderr = result.stderr.strip()
+        msg = f"Pipe command failed: {command}"
+        if stderr:
+            msg += f"\n  {stderr}"
+        raise ShellError(msg)
     return result.stdout
 
 

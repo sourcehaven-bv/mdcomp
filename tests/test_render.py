@@ -104,13 +104,14 @@ class TestCustomFilters:
 class TestStrictMode:
     def test_strict_mode_raises_on_undefined(self, templates_dir: Path):
         import pytest
-        from jinja2 import UndefinedError
+
+        from mdcomp.errors import UndefinedVariableError
 
         # Create a simple template with undefined variable
         template_path = templates_dir / "strict_test.md.j2"
         template_path.write_text("Hello {{ undefined_var }}!")
 
-        with pytest.raises(UndefinedError):
+        with pytest.raises(UndefinedVariableError):
             render_template(template_path, {}, strict=True)
 
     def test_non_strict_mode_allows_undefined(self, templates_dir: Path):
@@ -180,35 +181,25 @@ class TestPathResolution:
         """content_base in frontmatter should set the base directory."""
         # Create a template with content_base in frontmatter
         template_path = templates_dir / "fm_content_base_test.md.j2"
-        template_path.write_text(
-            "---\ncontent_base: ../snippets\n---\n{{ content(\"header.md\") }}"
-        )
+        template_path.write_text('---\ncontent_base: ../snippets\n---\n{{ content("header.md") }}')
 
         result = render_template(template_path, {})
         assert "Acme Corporation" in result
 
-    def test_content_base_cli_overrides_frontmatter(
-        self, templates_dir: Path, snippets_dir: Path
-    ):
+    def test_content_base_cli_overrides_frontmatter(self, templates_dir: Path, snippets_dir: Path):
         """CLI content_base should override frontmatter content_base."""
         # Create a template with wrong content_base in frontmatter
         template_path = templates_dir / "cli_override_test.md.j2"
-        template_path.write_text(
-            "---\ncontent_base: /nonexistent\n---\n{{ content(\"header.md\") }}"
-        )
+        template_path.write_text('---\ncontent_base: /nonexistent\n---\n{{ content("header.md") }}')
 
         # CLI parameter should override frontmatter
         result = render_template(template_path, {}, content_base=snippets_dir)
         assert "Acme Corporation" in result
 
-    def test_base_parameter_in_content_function(
-        self, templates_dir: Path, snippets_dir: Path
-    ):
+    def test_base_parameter_in_content_function(self, templates_dir: Path, snippets_dir: Path):
         """The base= parameter in content functions should override all defaults."""
         template_path = templates_dir / "base_param_test.md.j2"
-        template_path.write_text(
-            f'{{{{ content("header.md", base="{snippets_dir}") }}}}'
-        )
+        template_path.write_text(f'{{{{ content("header.md", base="{snippets_dir}") }}}}')
 
         result = render_template(template_path, {})
         assert "Acme Corporation" in result
@@ -235,9 +226,7 @@ class TestPathResolution:
         """base=template_dir should resolve paths relative to template directory."""
         # Create a template that uses template_dir as base
         template_path = templates_dir / "template_dir_base_test.md.j2"
-        template_path.write_text(
-            '{{ content("../snippets/header.md", base=template_dir) }}'
-        )
+        template_path.write_text('{{ content("../snippets/header.md", base=template_dir) }}')
 
         result = render_template(template_path, {})
         assert "Acme Corporation" in result

@@ -19,7 +19,9 @@ class TestParseVar:
         assert value == "a=b"
 
     def test_invalid_var(self):
-        with pytest.raises(ValueError):
+        from mdcomp.errors import ContextError
+
+        with pytest.raises(ContextError):
             parse_var("invalid")
 
 

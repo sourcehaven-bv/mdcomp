@@ -7,19 +7,31 @@ from pathlib import Path
 
 import yaml
 
+from mdcomp.errors import ContextError, ContextParseError
+
 
 def load_yaml_or_json(path: Path) -> dict:
     """Load a YAML or JSON file."""
-    content = path.read_text()
-    if path.suffix == ".json":
-        return json.loads(content)
-    return yaml.safe_load(content) or {}
+    try:
+        content = path.read_text()
+    except FileNotFoundError:
+        raise ContextParseError(f"Context file not found: {path}") from None
+    except OSError as e:
+        raise ContextParseError(f"Cannot read context file {path}: {e}") from e
+    try:
+        if path.suffix == ".json":
+            return json.loads(content)
+        return yaml.safe_load(content) or {}
+    except json.JSONDecodeError as e:
+        raise ContextParseError(f"Invalid JSON in {path}: {e}") from e
+    except yaml.YAMLError as e:
+        raise ContextParseError(f"Invalid YAML in {path}: {e}") from e
 
 
 def parse_var(var_string: str) -> tuple[str, str]:
     """Parse a key=value string into a tuple."""
     if "=" not in var_string:
-        raise ValueError(f"Invalid variable format: {var_string}. Expected key=value")
+        raise ContextError(f"Invalid variable format: {var_string!r}. Expected key=value")
     key, _, value = var_string.partition("=")
     return key.strip(), value
 
@@ -59,7 +71,10 @@ def load_context(
     if context_stdin:
         stdin_data = sys.stdin.read()
         if stdin_data.strip():
-            stdin_context = json.loads(stdin_data)
+            try:
+                stdin_context = json.loads(stdin_data)
+            except json.JSONDecodeError as e:
+                raise ContextParseError(f"Invalid JSON from stdin: {e}") from e
             context.update(stdin_context)
 
     # Layer 3: CLI overrides

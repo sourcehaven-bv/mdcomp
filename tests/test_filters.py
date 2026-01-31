@@ -202,5 +202,7 @@ class TestPipe:
         assert result.strip() == "hello\nworld"
 
     def test_command_failure_raises(self):
-        with pytest.raises(RuntimeError, match="Pipe command failed"):
+        from mdcomp.errors import ShellError
+
+        with pytest.raises(ShellError, match="Pipe command failed"):
             pipe("test", "exit 1")

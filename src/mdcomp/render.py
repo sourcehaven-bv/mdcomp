@@ -1,14 +1,45 @@
 """Jinja2 rendering environment with custom functions."""
 
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 import frontmatter
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import TemplateSyntaxError as JinjaTemplateSyntaxError
+from jinja2 import UndefinedError as JinjaUndefinedError
 
+from mdcomp.errors import (
+    ContentNotFoundError,
+    MdcompError,
+    ShellError,
+    TemplateError,
+    TemplateSyntaxError,
+    UndefinedVariableError,
+)
 from mdcomp.filters import FILTERS
 from mdcomp.query import glob_files, query_files
+
+
+def _get_template_lineno() -> int | None:
+    """Extract the template line number from the current exception's traceback.
+
+    Jinja2 rewrites the traceback so that template lines appear as frames
+    with filename ``<template>``.  Walk the traceback to find it.
+    """
+    tb = sys.exc_info()[2]
+    lineno = None
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename == "<template>":
+            lineno = tb.tb_lineno
+        tb = tb.tb_next
+    return lineno
+
+
+def _at_line(lineno: int | None) -> str:
+    """Format a `` (line N)`` suffix, or empty string if unknown."""
+    return f" (line {lineno})" if lineno else ""
 
 
 def create_environment(
@@ -73,7 +104,13 @@ def create_environment(
             path: Path to file (absolute or relative to content base)
             base: Optional base directory override
         """
-        return resolve_content_path(path, base).read_text()
+        resolved = resolve_content_path(path, base)
+        try:
+            return resolved.read_text()
+        except FileNotFoundError:
+            raise ContentNotFoundError(f"File not found: {resolved}") from None
+        except OSError as e:
+            raise ContentNotFoundError(f"Cannot read file {resolved}: {e}") from e
 
     def get_content(path: str | Path, base: str | Path | None = None) -> str:
         """Get the content of a markdown file without frontmatter.
@@ -82,7 +119,13 @@ def create_environment(
             path: Path to file (absolute or relative to content base)
             base: Optional base directory override
         """
-        post = frontmatter.load(resolve_content_path(path, base))
+        resolved = resolve_content_path(path, base)
+        try:
+            post = frontmatter.load(resolved)
+        except FileNotFoundError:
+            raise ContentNotFoundError(f"File not found: {resolved}") from None
+        except OSError as e:
+            raise ContentNotFoundError(f"Cannot read file {resolved}: {e}") from e
         return post.content
 
     def get_render_content(path: str | Path, base: str | Path | None = None) -> str:
@@ -92,7 +135,13 @@ def create_environment(
             path: Path to file (absolute or relative to content base)
             base: Optional base directory override
         """
-        post = frontmatter.load(resolve_content_path(path, base))
+        resolved = resolve_content_path(path, base)
+        try:
+            post = frontmatter.load(resolved)
+        except FileNotFoundError:
+            raise ContentNotFoundError(f"File not found: {resolved}") from None
+        except OSError as e:
+            raise ContentNotFoundError(f"Cannot read file {resolved}: {e}") from e
         # Render the content as a Jinja2 template using the current context
         template = env.from_string(post.content)
         return template.render(**render_context)
@@ -104,7 +153,13 @@ def create_environment(
             path: Path to file (absolute or relative to content base)
             base: Optional base directory override
         """
-        post = frontmatter.load(resolve_content_path(path, base))
+        resolved = resolve_content_path(path, base)
+        try:
+            post = frontmatter.load(resolved)
+        except FileNotFoundError:
+            raise ContentNotFoundError(f"File not found: {resolved}") from None
+        except OSError as e:
+            raise ContentNotFoundError(f"Cannot read file {resolved}: {e}") from e
         return post.metadata
 
     def glob_wrapper(pattern: str, base: str | Path | None = None) -> list[Path]:
@@ -159,7 +214,11 @@ def run_shell(command: str) -> str:
         check=False,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Command failed: {command}\nStderr: {result.stderr}")
+        stderr = result.stderr.strip()
+        msg = f"Shell command failed: {command}"
+        if stderr:
+            msg += f"\n  {stderr}"
+        raise ShellError(msg)
     return result.stdout
 
 
@@ -215,9 +274,34 @@ def render_template(
     )
 
     # Create template from string (since we may have stripped frontmatter)
-    template = env.from_string(template_body)
+    try:
+        template = env.from_string(template_body)
+    except JinjaTemplateSyntaxError as e:
+        raise TemplateSyntaxError(
+            f"Template syntax error in {template_path}, line {e.lineno}: {e.message}"
+        ) from e
 
-    return template.render(**merged_context)
+    try:
+        return template.render(**merged_context)
+    except MdcompError as e:
+        lineno = _get_template_lineno()
+        if lineno is not None:
+            raise type(e)(f"{e}{_at_line(lineno)}") from e.__cause__
+        raise
+    except JinjaUndefinedError as e:
+        lineno = _get_template_lineno()
+        raise UndefinedVariableError(
+            f"Undefined variable in {template_path}{_at_line(lineno)}: {e}"
+        ) from e
+    except JinjaTemplateSyntaxError as e:
+        raise TemplateSyntaxError(
+            f"Template syntax error in {template_path}, line {e.lineno}: {e.message}"
+        ) from e
+    except Exception as e:
+        lineno = _get_template_lineno()
+        raise TemplateError(
+            f"Rendering failed for {template_path}{_at_line(lineno)}: {e}"
+        ) from e
 
 
 def render_string(template_string: str, context: dict, base_dir: Path | None = None) -> str:
@@ -233,5 +317,29 @@ def render_string(template_string: str, context: dict, base_dir: Path | None = N
         Rendered template as a string
     """
     env = create_environment(template_dir=base_dir)
-    template = env.from_string(template_string)
-    return template.render(**context)
+    try:
+        template = env.from_string(template_string)
+    except JinjaTemplateSyntaxError as e:
+        raise TemplateSyntaxError(
+            f"Template syntax error, line {e.lineno}: {e.message}"
+        ) from e
+
+    try:
+        return template.render(**context)
+    except MdcompError as e:
+        lineno = _get_template_lineno()
+        if lineno is not None:
+            raise type(e)(f"{e}{_at_line(lineno)}") from e.__cause__
+        raise
+    except JinjaUndefinedError as e:
+        lineno = _get_template_lineno()
+        raise UndefinedVariableError(
+            f"Undefined variable{_at_line(lineno)}: {e}"
+        ) from e
+    except JinjaTemplateSyntaxError as e:
+        raise TemplateSyntaxError(
+            f"Template syntax error, line {e.lineno}: {e.message}"
+        ) from e
+    except Exception as e:
+        lineno = _get_template_lineno()
+        raise TemplateError(f"Rendering failed{_at_line(lineno)}: {e}") from e

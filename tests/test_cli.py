@@ -100,7 +100,7 @@ class TestRenderCommand:
         assert "Error" in (result.stderr or result.stdout)
 
     def test_render_error_no_strict_mode(self, tmp_path: Path):
-        """Test that render errors without strict mode still raise."""
+        """Test that render errors without strict mode exit cleanly."""
         # Create a template that will fail
         bad_template = tmp_path / "bad.md.j2"
         bad_template.write_text("{{ read('nonexistent_file.txt') }}")
@@ -108,8 +108,8 @@ class TestRenderCommand:
             app,
             ["render", str(bad_template)],
         )
-        # Should still fail, but exception propagates
-        assert result.exit_code != 0
+        assert result.exit_code == 1
+        assert "Error" in (result.stderr or result.stdout)
 
 
 class TestListCommand:
