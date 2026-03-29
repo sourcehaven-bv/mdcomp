@@ -38,3 +38,7 @@ class ContentNotFoundError(MdcompError):
 
 class ShellError(MdcompError):
     """A shell command (shell() or pipe()) failed."""
+
+
+class DatabaseError(MdcompError):
+    """A database operation (sql()) failed."""
