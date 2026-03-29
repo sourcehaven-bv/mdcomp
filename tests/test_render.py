@@ -1,5 +1,6 @@
 """Tests for template rendering."""
 
+import warnings
 from pathlib import Path
 
 from mdcomp.render import render_string, render_template
@@ -229,3 +230,94 @@ class TestPathResolution:
 
         result = render_template(template_path, {})
         assert "Acme Corporation" in result
+
+
+class TestMarkdownAnchors:
+    """Test that markdown anchor syntax {#id} works without escaping."""
+
+    def test_markdown_anchor_in_heading(self):
+        """Markdown anchors like {#my-id} should work without escaping."""
+        result = render_string("### Heading {#my-anchor}", {})
+        assert result == "### Heading {#my-anchor}"
+
+    def test_markdown_anchor_with_variable(self):
+        """Markdown anchors can be combined with variables."""
+        result = render_string("### {{ title }} {#{{ id }}}", {"title": "Hello", "id": "hello"})
+        assert result == "### Hello {#hello}"
+
+    def test_new_comment_syntax(self):
+        """Comments now use {## ##} syntax."""
+        result = render_string("{## This is a comment ##}Hello", {})
+        assert result == "Hello"
+
+    def test_old_comment_syntax_treated_as_text(self):
+        """Old {# #} syntax is now treated as regular text."""
+        result = render_string("{# not a comment #}", {})
+        assert result == "{# not a comment #}"
+
+
+class TestSafeFilterWarning:
+    """Test that using | safe filter emits a warning."""
+
+    def test_safe_filter_emits_warning(self):
+        """Using | safe should emit a warning since autoescape is False."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = render_string("{{ name | safe }}", {"name": "test"})
+
+            assert result == "test"
+            assert len(w) == 1
+            assert "safe" in str(w[0].message).lower()
+            assert "unnecessary" in str(w[0].message).lower()
+            # Singular form for 1 usage
+            assert "1 usage" in str(w[0].message)
+            # Should include line number
+            assert "line" in str(w[0].message).lower()
+
+    def test_multiple_safe_filters_single_warning(self):
+        """Multiple | safe usages should report count in single warning."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            render_string("{{ a | safe }} {{ b | safe }} {{ c | safe }}", {"a": 1, "b": 2, "c": 3})
+
+            assert len(w) == 1
+            # Plural form for multiple usages
+            assert "3 usages" in str(w[0].message)
+
+    def test_no_warning_without_safe_filter(self):
+        """No warning should be emitted when | safe is not used."""
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            render_string("{{ name }}", {"name": "test"})
+
+            assert len(w) == 0
+
+    def test_safe_filter_warning_in_template_file(self, templates_dir: Path):
+        """Warning should include template path when rendering a file."""
+        template_path = templates_dir / "safe_filter_test.md.j2"
+        template_path.write_text("{{ content | safe }}")
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            render_template(template_path, {"content": "hello"})
+
+            assert len(w) == 1
+            assert "safe_filter_test" in str(w[0].message)
+
+    def test_safe_filter_warning_in_render_content(self, templates_dir: Path, snippets_dir: Path):
+        """Warning should be emitted for | safe in render_content() included files."""
+        # Create a snippet with | safe filter
+        snippet_path = snippets_dir / "safe_snippet.md"
+        snippet_path.write_text("---\ntype: snippet\n---\nHello {{ name | safe }}!")
+
+        # Create a template that uses render_content
+        template_path = templates_dir / "render_content_safe_test.md.j2"
+        template_path.write_text(f'{{{{ render_content("{snippet_path}") }}}}')
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = render_template(template_path, {"name": "World"})
+
+            assert "Hello World!" in result
+            assert len(w) == 1
+            assert "safe_snippet" in str(w[0].message)

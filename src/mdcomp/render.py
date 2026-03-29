@@ -2,11 +2,12 @@
 
 import subprocess
 import sys
+import warnings
 from pathlib import Path
 from typing import Any
 
 import frontmatter
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, nodes
 from jinja2 import TemplateSyntaxError as JinjaTemplateSyntaxError
 from jinja2 import UndefinedError as JinjaUndefinedError
 
@@ -41,6 +42,45 @@ def _get_template_lineno() -> int | None:
 def _at_line(lineno: int | None) -> str:
     """Format a `` (line N)`` suffix, or empty string if unknown."""
     return f" (line {lineno})" if lineno else ""
+
+
+def _warn_safe_filter(template_source: str, env: Environment, source_name: str = "") -> None:
+    """Emit a warning if the template uses the | safe filter.
+
+    With autoescape=False, the safe filter has no effect and is unnecessary.
+    """
+    try:
+        ast = env.parse(template_source)
+    except JinjaTemplateSyntaxError:
+        # If parsing fails, let the actual render handle the error
+        return
+
+    def find_safe_filters(node: nodes.Node) -> list[nodes.Filter]:
+        """Recursively find all 'safe' filter nodes in the AST."""
+        filters = []
+        if isinstance(node, nodes.Filter) and node.name == "safe":
+            filters.append(node)
+        for child in node.iter_child_nodes():
+            filters.extend(find_safe_filters(child))
+        return filters
+
+    safe_filters = find_safe_filters(ast)
+    if safe_filters:
+        location = f" in {source_name}" if source_name else ""
+        lines = sorted({f.lineno for f in safe_filters if f.lineno})
+        if lines:
+            line_word = "lines" if len(lines) > 1 else "line"
+            line_info = f" on {line_word} {', '.join(map(str, lines))}"
+        else:
+            line_info = ""
+        count = len(safe_filters)
+        usages = "usage" if count == 1 else "usages"
+        warnings.warn(
+            f"The '| safe' filter is unnecessary{location}{line_info}. "
+            f"mdcomp uses autoescape=False, so HTML is never escaped. "
+            f"Found {count} {usages} that can be removed.",
+            stacklevel=3,
+        )
 
 
 def create_environment(
@@ -79,6 +119,9 @@ def create_environment(
         "autoescape": False,  # No escaping for Markdown/LaTeX output
         "trim_blocks": True,
         "lstrip_blocks": True,
+        # Use {## ##} for comments to avoid conflict with markdown anchor syntax {#id}
+        "comment_start_string": "{##",
+        "comment_end_string": "##}",
     }
     if strict:
         env_kwargs["undefined"] = StrictUndefined
@@ -143,6 +186,7 @@ def create_environment(
         except OSError as e:
             raise ContentNotFoundError(f"Cannot read file {resolved}: {e}") from e
         # Render the content as a Jinja2 template using the current context
+        _warn_safe_filter(post.content, env, str(resolved))
         template = env.from_string(post.content)
         return template.render(**render_context)
 
@@ -311,6 +355,9 @@ def render_template(
             f"Template syntax error in {template_path}, line {e.lineno}: {e.message}"
         ) from e
 
+    # Warn if template uses unnecessary | safe filter
+    _warn_safe_filter(template_body, env, str(template_path))
+
     try:
         return template.render(**merged_context)
     except MdcompError as e:
@@ -360,6 +407,9 @@ def render_string(
         template = env.from_string(template_string)
     except JinjaTemplateSyntaxError as e:
         raise TemplateSyntaxError(f"Template syntax error, line {e.lineno}: {e.message}") from e
+
+    # Warn if template uses unnecessary | safe filter
+    _warn_safe_filter(template_string, env)
 
     try:
         return template.render(**context)
