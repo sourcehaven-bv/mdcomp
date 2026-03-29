@@ -97,10 +97,11 @@ ignore = [
 max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
+"src/mdcomp/cli.py" = ["ARG001"]  # Typer callback arguments are used by framework
 "src/mdcomp/query.py" = ["PERF203", "S112"]  # try-except in loop is acceptable for file parsing
-"src/mdcomp/render.py" = ["S602", "S603", "S607", "S701"]  # intentional shell execution + autoescape is configured via select_autoescape
+"src/mdcomp/render.py" = ["S602", "S603", "S607", "S701", "C901", "PLR0915"]  # intentional shell execution + complex env setup
 "src/mdcomp/filters.py" = ["S602", "S603", "S607"]  # intentional shell execution (pipe filter)
-"tests/*" = ["S101", "S110"]  # assert is fine in tests; bare except pass in fuzz tests
+"tests/*" = ["S101", "S110", "ARG002"]  # assert ok; bare except in fuzz; unused fixture args
 
 [tool.ruff.lint.isort]
 known-first-party = ["mdcomp"]
@@ -130,7 +131,7 @@ testpaths = ["tests"]
 
 [tool.vulture]
 min_confidence = 80
-paths = ["src"]
+paths = ["src", "vulture_allowlist.py"]
 exclude = []
 
 [tool.pylint.main]

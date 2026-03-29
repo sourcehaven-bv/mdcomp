@@ -105,9 +105,7 @@ class TestContentNotFoundErrors:
 
     def test_error_includes_line_number(self):
         with pytest.raises(ContentNotFoundError, match=r"line 3"):
-            render_string(
-                "line one\nline two\n{{ read('does_not_exist.txt') }}", {}
-            )
+            render_string("line one\nline two\n{{ read('does_not_exist.txt') }}", {})
 
 
 class TestShellErrors:
