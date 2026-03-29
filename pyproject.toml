@@ -41,6 +41,7 @@ dependencies = [
 
 [project.optional-dependencies]
 watch = ["watchfiles>=0.21"]
+sql = ["sqlalchemy>=2.0"]
 
 [project.scripts]
 mdcomp = "mdcomp.cli:app"
@@ -161,4 +162,5 @@ dev = [
     "pylint>=3.0",
     "pre-commit>=4.0",
     "watchfiles>=0.21",
+    "sqlalchemy>=2.0",
 ]

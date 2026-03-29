@@ -1,0 +1,206 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-03-29T08:59:52.773738+02:00",
+  "nodes": [
+    {
+      "id": "PLAN-ZBZP",
+      "type": "planning-checklist",
+      "properties": {
+        "status": "done",
+        "title": "Planning: SQL Data Source"
+      },
+      "content": "## Understanding\n\n- [x] Clarify requirements\n  - Use SQLAlchemy Core (not ORM) for database abstraction - similar to JDBC\n  - Support MySQL, PostgreSQL, SQLite via same connection URL format\n  - Raw queries only, no ORM\n- [x] Define scope (in/out)\n  - **In scope**: `sql()` function, single connection, parameterized queries, read-only\n  - **Out of scope**: ORM, multiple connections, write operations, NoSQL\n- [x] Write acceptance criteria\n  1. `sql(query, params)` function available in templates\n  2. Returns list of dicts (column names as keys)\n  3. Connection via `MDCOMP_DB_URL` env var, `db_url` context, or `--db-url` CLI flag\n  4. Parameterized queries to prevent SQL injection\n  5. Clear error messages for connection/query failures\n  6. Works with MySQL, PostgreSQL, SQLite\n\n## Approach\n\n- [x] Research codebase\n  - `render.py:create_environment()` - injects global functions into Jinja2\n  - `errors.py` - custom exception hierarchy (add `DatabaseError`)\n  - `context.py` - loads variables from env/file/CLI\n  - `cli.py` - defines CLI options\n- [x] Document technical approach\n  1. Add `sqlalchemy` as optional dependency (`pip install mdcomp[sql]`)\n  2. Add `DatabaseError` to `errors.py`\n  3. Create `src/mdcomp/database.py` with connection handling and `run_sql()` function\n  4. Add `--db-url` CLI option and `MDCOMP_DB_URL` env var support\n  5. Inject `sql()` function in `create_environment()` when db_url is provided\n- [x] List files to modify\n  - `pyproject.toml` - add sqlalchemy optional dependency\n  - `src/mdcomp/errors.py` - add DatabaseError\n  - `src/mdcomp/database.py` - NEW: connection and query logic\n  - `src/mdcomp/render.py` - inject sql() into environment\n  - `src/mdcomp/cli.py` - add --db-url option\n  - `src/mdcomp/context.py` - support MDCOMP_DB_URL\n  - `tests/test_database.py` - NEW: database tests\n  - `docs/templates.md` - document sql() function\n- [x] Consider alternatives\n  - **Direct driver (mysql-connector)**: Simpler but MySQL-only\n  - **SQLAlchemy Core**: Chosen - multi-DB support with same interface\n  - **asyncio version**: Overkill for CLI tool, rejected\n\n## Test Plan\n\n- [x] Define test scenarios\n  1. Basic SELECT query returns list of dicts\n  2. Parameterized queries work correctly\n  3. Empty result returns empty list\n  4. Connection errors give clear message\n  5. Query errors give clear message\n  6. Works in Jinja2 template context\n- [x] List edge cases\n  - NULL values in results\n  - Special characters in data\n  - Large result sets\n  - Unicode column names\n  - No db_url configured (sql() should error clearly)\n- [x] Integration test approach\n  - Use SQLite in-memory for fast tests\n  - Test full render pipeline with sql() in template\n\n## Risk Assessment\n\n- [x] Identify risks\n  1. **Dependency bloat**: SQLAlchemy adds overhead\n  2. **SQL injection**: Users might concatenate strings\n  3. **Credentials exposure**: db_url in context files\n  4. **Performance**: Large result sets in memory\n- [x] Document mitigations\n  1. Make SQLAlchemy optional (`mdcomp[sql]`)\n  2. Document parameterized queries prominently, use text() binding\n  3. Recommend env var over context files for credentials\n  4. Document that this is for reporting, not ETL",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/planning-checklists/PLAN-ZBZP.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "IMPL-Z7S1",
+      "type": "implementation-checklist",
+      "properties": {
+        "status": "done",
+        "title": "Implementation: SQL Data Source"
+      },
+      "content": "## Development\n\n- [x] Add sqlalchemy optional dependency to pyproject.toml\n- [x] Add DatabaseError to errors.py\n- [x] Create database.py with run_sql() function\n- [x] Add --db-url CLI option\n- [x] Inject sql() into render.py environment\n- [x] Write unit tests\n- [x] Write integration tests\n\n## Verification\n\n- [x] All tests pass (162 passed)\n- [x] Manual test with SQLite - verified sql() queries database correctly\n- [x] Error handling verified - clear message when db_url not provided",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/implementation-checklists/IMPL-Z7S1.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "REV-HGXF",
+      "type": "review-checklist",
+      "properties": {
+        "status": "done",
+        "title": "Review: SQL Data Source"
+      },
+      "content": "## Automated Checks\n\n- [x] All tests pass (168 passed)\n- [x] Lint - pre-existing warnings only\n- [x] Coverage check - not run (no coverage-check target)\n\n## Code Review\n\n- [x] Run cranky-code-reviewer\n- [x] Address findings:\n  - RR-953T: Connection pool exhaustion - ADDRESSED (engine caching)\n  - RR-YYXA: Credentials in errors - ADDRESSED (URL sanitization)\n  - RR-J8Z3: Positional params fragile - ADDRESSED (removed, named only)\n  - RR-E3YG: Missing edge case tests - ADDRESSED (added tests)\n\n## Acceptance Verification\n\n- [x] sql(query, params) returns list of dicts\n- [x] Works with SQLite URLs (MySQL/PostgreSQL require drivers)\n- [x] Parameterized queries work (named :param style)\n- [x] Clear errors for connection/query failures\n- [x] Clear error when db_url not configured",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/review-checklists/REV-HGXF.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "RR-YYXA",
+      "type": "review-response",
+      "properties": {
+        "finding": "If db_url contains password and connection fails, that password may end up in log files, error reports, stack traces, user-facing error messages. SQLAlchemy exceptions often include the connection URL.",
+        "resolution": "Added _sanitize_url() function that strips passwords from URLs before including them in error messages. All error messages now use sanitized URLs. Added comprehensive tests for URL sanitization.",
+        "severity": "critical",
+        "status": "addressed",
+        "title": "Credentials exposed in error messages"
+      },
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/review-responses/RR-YYXA.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "RR-E3YG",
+      "type": "review-response",
+      "properties": {
+        "finding": "Missing tests for multiple positional parameters and unicode/binary data.",
+        "resolution": "Added test_multiple_named_params, test_unicode_data, test_engine_caching, and URL sanitization tests. Coverage for edge cases is now comprehensive.",
+        "severity": "minor",
+        "status": "addressed",
+        "title": "Missing tests for edge cases"
+      },
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/review-responses/RR-E3YG.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "TKT-RLPC",
+      "type": "ticket",
+      "properties": {
+        "effort": "m",
+        "kind": "enhancement",
+        "priority": "medium",
+        "status": "done",
+        "title": "Add SQL data source for template queries"
+      },
+      "content": "Enable mdcomp templates to execute SQL queries against MySQL (and potentially other SQL databases) as a data source for document generation.\n\n## Motivation\n\nCurrently, mdcomp templates can access data from:\n- Context files (YAML/JSON)\n- Environment variables\n- CLI arguments\n- File system queries (markdown with frontmatter)\n- Shell commands\n\nFor many documentation and reporting use cases, data lives in SQL databases. While users can work around this using shell commands (`shell(\"mysql -e 'SELECT ...' | jq\")`), a native SQL integration would provide:\n- Better ergonomics with parameterized queries\n- Proper result formatting as lists of dicts\n- Secure credential handling\n- Connection pooling for multiple queries\n- Clear error messages for database issues\n\n## Proposed Solution\n\nAdd a `sql()` function available in templates:\n\n```jinja\n{% for user in sql(\"SELECT name, email FROM users WHERE status = %s\", [\"active\"]) %}\n- {{ user.name }}: {{ user.email }}\n{% endfor %}\n```\n\nWith database connection configured via:\n- Context variable (`db_url` or similar)\n- Environment variable (`MDCOMP_DB_URL`)\n- CLI flag (`--db-url`)\n\n## Out of Scope\n\n- ORM/model support (this is for raw SQL queries)\n- Schema migrations\n- Write operations (INSERT/UPDATE/DELETE) - read-only by design\n- NoSQL databases (separate feature)",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/tickets/TKT-RLPC.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "FEAT-HS50",
+      "type": "feature",
+      "properties": {
+        "description": "Add a sql() function to templates that executes queries against MySQL/PostgreSQL/SQLite and returns results as a list of dictionaries for iteration in Jinja2 templates.",
+        "priority": "medium",
+        "status": "implemented",
+        "summary": "Execute SQL queries against databases from within templates",
+        "title": "SQL Data Source"
+      },
+      "content": "Allow templates to query SQL databases (MySQL, PostgreSQL, SQLite) as a data source for document generation.\n\n## User Value\n\n- Generate reports from live database data\n- Create documentation that reflects current system state\n- Build dashboards and status pages with real data\n\n## Capabilities\n\n- `sql()` function available in templates\n- Parameterized queries to prevent SQL injection\n- Results returned as list of dictionaries\n- Read-only operations only (SELECT)\n- Connection via URL string (standard database URL format)",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/features/FEAT-HS50.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "RR-953T",
+      "type": "review-response",
+      "properties": {
+        "finding": "Every call to run_sql creates a new SQLAlchemy engine, which maintains connection pools. Creating a new engine per query means connection pool per call, pools never properly disposed, and under load will exhaust database connections.",
+        "resolution": "Added engine caching via _engine_cache dict. Engines are now reused for the same db_url, preventing connection pool exhaustion. Added test_engine_caching test to verify.",
+        "severity": "critical",
+        "status": "addressed",
+        "title": "Connection pool exhaustion"
+      },
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/review-responses/RR-953T.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "RR-J8Z3",
+      "type": "review-response",
+      "properties": {
+        "finding": "Naive string replacement breaks when query contains ? inside string literals, in comments, or uses ?? for JSON operators (PostgreSQL). Recommend removing positional params or documenting limitation.",
+        "resolution": "Removed positional parameter support entirely. API now only accepts dict params with :name syntax. This is cleaner, more readable, and avoids the fragile string replacement logic.",
+        "severity": "significant",
+        "status": "addressed",
+        "title": "Positional parameter replacement is fragile"
+      },
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/review-responses/RR-J8Z3.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "id": "sql-data-source",
+      "type": "concept",
+      "properties": {
+        "description": "Template function that connects to SQL databases, executes parameterized SELECT queries, and returns results as structured data (list of dicts) for use in document generation.",
+        "layer": "core",
+        "package": "mdcomp.database",
+        "status": "stable",
+        "summary": "Database query integration for templates",
+        "title": "SQL Data Source"
+      },
+      "content": "A template function that executes SQL queries and returns results as structured data.\n\n## Responsibilities\n\n- Connect to SQL databases using connection URLs\n- Execute parameterized SELECT queries\n- Return results as list of dicts (column names as keys)\n- Handle connection errors gracefully\n- Enforce read-only access\n\n## Integration Points\n\n- Injected into Jinja2 environment as `sql()` global function\n- Connection string provided via context, env var, or CLI\n- Follows same error handling patterns as `shell()`",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/entities/concepts/sql-data-source.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    }
+  ],
+  "edges": [
+    {
+      "from": "TKT-RLPC",
+      "relation": "implements",
+      "to": "FEAT-HS50",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--implements--FEAT-HS50.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "affects",
+      "to": "sql-data-source",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--affects--sql-data-source.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "FEAT-HS50",
+      "relation": "requires",
+      "to": "sql-data-source",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/FEAT-HS50--requires--sql-data-source.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-planning",
+      "to": "PLAN-ZBZP",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-planning--PLAN-ZBZP.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-implementation",
+      "to": "IMPL-Z7S1",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-implementation--IMPL-Z7S1.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-review",
+      "to": "REV-HGXF",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-review--REV-HGXF.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-review-response",
+      "to": "RR-953T",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-review-response--RR-953T.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-review-response",
+      "to": "RR-YYXA",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-review-response--RR-YYXA.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-review-response",
+      "to": "RR-J8Z3",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-review-response--RR-J8Z3.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    },
+    {
+      "from": "TKT-RLPC",
+      "relation": "has-review-response",
+      "to": "RR-E3YG",
+      "filePath": "/Users/jeroen/Work/sourcehaven/mdcomp/tickets/relations/TKT-RLPC--has-review-response--RR-E3YG.md",
+      "modTime": "0001-01-01T00:00:00Z"
+    }
+  ]
+}

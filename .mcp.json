@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "rela-issues-and-design-tickets": {
+      "command": "rela",
+      "args": ["--project", "tickets", "mcp"]
+    }
+  }
+}

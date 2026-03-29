@@ -74,6 +74,14 @@ def render(
             help="Base directory for content lookups (default: cwd)",
         ),
     ] = None,
+    db_url: Annotated[
+        str | None,
+        typer.Option(
+            "--db-url",
+            help="Database URL for sql() function (e.g., sqlite:///db.sqlite)",
+            envvar="MDCOMP_DB_URL",
+        ),
+    ] = None,
 ) -> None:
     """Render a template with context variables."""
     if not template.exists():
@@ -94,6 +102,7 @@ def render(
             context=ctx,
             strict=strict,
             content_base=content_base,
+            db_url=db_url,
         )
 
         # Output result
@@ -246,6 +255,14 @@ def watch(
             help="Base directory for content lookups (default: cwd)",
         ),
     ] = None,
+    db_url: Annotated[
+        str | None,
+        typer.Option(
+            "--db-url",
+            help="Database URL for sql() function (e.g., sqlite:///db.sqlite)",
+            envvar="MDCOMP_DB_URL",
+        ),
+    ] = None,
 ) -> None:
     """Watch files and re-render on changes."""
     try:
@@ -279,6 +296,7 @@ def watch(
                 template_path=template,
                 context=ctx,
                 content_base=content_base,
+                db_url=db_url,
             )
             output.write_text(result)
             return True

@@ -12,6 +12,7 @@ from jinja2 import UndefinedError as JinjaUndefinedError
 
 from mdcomp.errors import (
     ContentNotFoundError,
+    DatabaseError,
     MdcompError,
     ShellError,
     TemplateError,
@@ -47,6 +48,7 @@ def create_environment(
     content_base: Path | None = None,
     strict: bool = False,
     context: dict | None = None,
+    db_url: str | None = None,
 ) -> Environment:
     """Create a Jinja2 environment with custom functions and filters.
 
@@ -55,6 +57,7 @@ def create_environment(
         content_base: Base directory for content functions (defaults to cwd)
         strict: If True, fail on undefined variables
         context: Context dict for render_content function
+        db_url: Database URL for sql() function (optional)
     """
     # Base directory for content lookups (defaults to cwd)
     resolved_content_base = (content_base or Path()).resolve()
@@ -194,6 +197,28 @@ def create_environment(
     env.globals["query"] = query_wrapper
     env.globals["shell"] = run_shell
 
+    # Add sql() function if db_url is configured
+    def sql_wrapper(query: str, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        """Execute a SQL query and return results as a list of dicts.
+
+        Args:
+            query: SQL query with :name placeholders for parameters
+            params: Dict mapping parameter names to values
+
+        Example:
+            sql("SELECT * FROM users WHERE status = :status", {"status": "active"})
+        """
+        if db_url is None:
+            raise DatabaseError(
+                "sql() requires a database URL. "
+                "Set via --db-url, MDCOMP_DB_URL env var, or db_url in context."
+            )
+        from mdcomp.database import run_sql
+
+        return run_sql(db_url, query, params)
+
+    env.globals["sql"] = sql_wrapper
+
     # Add path variables for use in templates
     env.globals["template_dir"] = resolved_template_dir
     env.globals["cwd"] = Path.cwd()
@@ -224,6 +249,7 @@ def render_template(
     context: dict,
     strict: bool = False,
     content_base: Path | None = None,
+    db_url: str | None = None,
 ) -> str:
     """
     Render a Jinja2 template with the given context.
@@ -233,6 +259,7 @@ def render_template(
         context: Dictionary of variables to pass to the template
         strict: If True, fail on undefined variables
         content_base: Base directory for content functions (overrides frontmatter)
+        db_url: Database URL for sql() function (optional)
 
     Returns:
         Rendered template as a string
@@ -262,12 +289,18 @@ def render_template(
         else:
             effective_content_base = template_dir / fm_content_base
 
+    # Determine db_url: CLI/env > context
+    effective_db_url = db_url
+    if effective_db_url is None and "db_url" in merged_context:
+        effective_db_url = merged_context["db_url"]
+
     # Create environment with merged context for render_content() function
     env = create_environment(
         template_dir=template_dir,
         content_base=effective_content_base,
         strict=strict,
         context=merged_context,
+        db_url=effective_db_url,
     )
 
     # Create template from string (since we may have stripped frontmatter)
@@ -299,7 +332,12 @@ def render_template(
         raise TemplateError(f"Rendering failed for {template_path}{_at_line(lineno)}: {e}") from e
 
 
-def render_string(template_string: str, context: dict, base_dir: Path | None = None) -> str:
+def render_string(
+    template_string: str,
+    context: dict,
+    base_dir: Path | None = None,
+    db_url: str | None = None,
+) -> str:
     """
     Render a Jinja2 template string with the given context.
 
@@ -307,11 +345,17 @@ def render_string(template_string: str, context: dict, base_dir: Path | None = N
         template_string: Template content as a string
         context: Dictionary of variables to pass to the template
         base_dir: Optional base directory for file operations
+        db_url: Database URL for sql() function (optional)
 
     Returns:
         Rendered template as a string
     """
-    env = create_environment(template_dir=base_dir)
+    # Determine db_url: explicit param > context
+    effective_db_url = db_url
+    if effective_db_url is None and "db_url" in context:
+        effective_db_url = context["db_url"]
+
+    env = create_environment(template_dir=base_dir, db_url=effective_db_url)
     try:
         template = env.from_string(template_string)
     except JinjaTemplateSyntaxError as e:
