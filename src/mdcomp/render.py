@@ -60,7 +60,7 @@ def create_environment(
     resolved_content_base = (content_base or Path()).resolve()
 
     # Resolved template directory (for template_dir variable)
-    resolved_template_dir = template_dir.resolve() if template_dir else Path().resolve()
+    resolved_template_dir = template_dir.resolve() if template_dir else Path.cwd()
 
     # Context for render_content function
     render_context = context if context else {}
@@ -91,10 +91,7 @@ def create_environment(
         p = Path(path)
         if p.is_absolute():
             return p
-        if base is not None:
-            effective_base = Path(base).resolve()
-        else:
-            effective_base = resolved_content_base
+        effective_base = Path(base).resolve() if base is not None else resolved_content_base
         return effective_base / p
 
     def read_file(path: str | Path, base: str | Path | None = None) -> str:
@@ -199,7 +196,7 @@ def create_environment(
 
     # Add path variables for use in templates
     env.globals["template_dir"] = resolved_template_dir
-    env.globals["cwd"] = Path().resolve()
+    env.globals["cwd"] = Path.cwd()
 
     return env
 
@@ -299,9 +296,7 @@ def render_template(
         ) from e
     except Exception as e:
         lineno = _get_template_lineno()
-        raise TemplateError(
-            f"Rendering failed for {template_path}{_at_line(lineno)}: {e}"
-        ) from e
+        raise TemplateError(f"Rendering failed for {template_path}{_at_line(lineno)}: {e}") from e
 
 
 def render_string(template_string: str, context: dict, base_dir: Path | None = None) -> str:
@@ -320,9 +315,7 @@ def render_string(template_string: str, context: dict, base_dir: Path | None = N
     try:
         template = env.from_string(template_string)
     except JinjaTemplateSyntaxError as e:
-        raise TemplateSyntaxError(
-            f"Template syntax error, line {e.lineno}: {e.message}"
-        ) from e
+        raise TemplateSyntaxError(f"Template syntax error, line {e.lineno}: {e.message}") from e
 
     try:
         return template.render(**context)
@@ -333,13 +326,9 @@ def render_string(template_string: str, context: dict, base_dir: Path | None = N
         raise
     except JinjaUndefinedError as e:
         lineno = _get_template_lineno()
-        raise UndefinedVariableError(
-            f"Undefined variable{_at_line(lineno)}: {e}"
-        ) from e
+        raise UndefinedVariableError(f"Undefined variable{_at_line(lineno)}: {e}") from e
     except JinjaTemplateSyntaxError as e:
-        raise TemplateSyntaxError(
-            f"Template syntax error, line {e.lineno}: {e.message}"
-        ) from e
+        raise TemplateSyntaxError(f"Template syntax error, line {e.lineno}: {e.message}") from e
     except Exception as e:
         lineno = _get_template_lineno()
         raise TemplateError(f"Rendering failed{_at_line(lineno)}: {e}") from e

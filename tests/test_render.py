@@ -157,7 +157,6 @@ class TestRenderContent:
 class TestPathResolution:
     def test_content_defaults_to_cwd(self, templates_dir: Path, snippets_dir: Path):
         """Content functions should default to resolving paths from cwd."""
-        import os
 
         # Create a template that uses a path relative to cwd
         template_path = templates_dir / "cwd_test.md.j2"

@@ -43,7 +43,7 @@ typecheck:
 
 # Find dead code
 deadcode:
-    uv run vulture src
+    uv run vulture src vulture_allowlist.py
 
 # Check for duplicate code
 dupes:
