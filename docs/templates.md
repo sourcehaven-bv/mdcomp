@@ -322,6 +322,98 @@ Branch: {{ shell("git branch --show-current") }}
 {% endfor %}
 ```
 
+## Database Queries
+
+### sql()
+
+Execute SQL queries against a database and return results as a list of dicts.
+
+**Requires:** `pip install mdcomp[sql]`
+
+```jinja
+{# Query with named parameters #}
+{% for user in sql("SELECT * FROM users WHERE status = :status", status="active") %}
+- {{ user.name }} ({{ user.email }})
+{% endfor %}
+
+{# Aggregate query #}
+{% set stats = sql("SELECT COUNT(*) as total, AVG(amount) as avg FROM orders")[0] %}
+Total orders: {{ stats.total }}
+Average amount: {{ stats.avg | round(2) }}
+
+{# Join query #}
+{% for order in sql("SELECT o.id, c.name FROM orders o JOIN customers c ON o.customer_id = c.id") %}
+Order #{{ order.id }} for {{ order.name }}
+{% endfor %}
+```
+
+### Connection URL
+
+The database URL is provided via CLI flag, context variable, or environment variable:
+
+```bash
+# Via CLI flag
+mdcomp render report.md.j2 --db-url "mysql+pymysql://user:pass@localhost/db"
+
+# Via environment variable
+export MDCOMP_VAR_db_url="postgresql://user:pass@localhost/db"
+mdcomp render report.md.j2
+
+# Via context file
+# context.yaml:
+#   db_url: sqlite:///data.db
+mdcomp render report.md.j2 -c context.yaml
+```
+
+### Supported Databases
+
+Any database supported by SQLAlchemy works. Common URL formats:
+
+| Database | URL Format |
+|----------|------------|
+| SQLite | `sqlite:///path/to/db.sqlite` |
+| MySQL | `mysql+pymysql://user:pass@host/db` |
+| PostgreSQL | `postgresql://user:pass@host/db` |
+| MariaDB | `mariadb+pymysql://user:pass@host/db` |
+
+**Unix sockets:**
+
+```bash
+# MySQL via socket
+mysql+pymysql://user:pass@/db?unix_socket=/var/run/mysqld/mysqld.sock
+
+# PostgreSQL via socket
+postgresql://user:pass@/db?host=/var/run/postgresql
+```
+
+### Parameters
+
+Use named parameters with `:name` syntax to prevent SQL injection:
+
+```jinja
+{# Safe: parameterized query #}
+{% for row in sql("SELECT * FROM users WHERE id = :id", id=user_id) %}
+...
+{% endfor %}
+
+{# Multiple parameters #}
+{% for row in sql(
+    "SELECT * FROM orders WHERE status = :status AND created_at > :since",
+    status="pending",
+    since="2024-01-01"
+) %}
+...
+{% endfor %}
+```
+
+### Error Handling
+
+Database errors raise `DatabaseError` with sanitized messages (credentials are never exposed):
+
+```
+DatabaseError: Query failed on mysql+pymysql://user:****@localhost/db: OperationalError
+```
+
 ## Combining Features
 
 ### Architecture document example

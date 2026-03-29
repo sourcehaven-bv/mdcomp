@@ -26,6 +26,7 @@ mdcomp render <template> [options]
 | `-o, --output <file>` | Output file (default: stdout) |
 | `--strict` | Fail on undefined variables |
 | `--content-base <dir>` | Base directory for content lookups (default: cwd) |
+| `--db-url <url>` | Database connection URL for `sql()` function |
 
 **Examples:**
 
@@ -47,6 +48,9 @@ mdcomp render template.md.j2 -c context.yaml | pandoc -o output.pdf
 
 # Set content base for content lookups
 mdcomp render templates/doc.md.j2 -c context.yaml --content-base ./content
+
+# Query a database (requires: pip install mdcomp[sql])
+mdcomp render report.md.j2 --db-url "sqlite:///data.db"
 ```
 
 ### mdcomp list
@@ -117,6 +121,7 @@ mdcomp watch <template> [options]
 | `-o, --output <file>` | Output file (required for watch) |
 | `--watch <path>` | Additional paths to watch (repeatable) |
 | `--content-base <dir>` | Base directory for content lookups (default: cwd) |
+| `--db-url <url>` | Database connection URL for `sql()` function |
 
 **Note:** Requires the `watchfiles` package. Install with `pip install mdcomp[watch]`.
 
